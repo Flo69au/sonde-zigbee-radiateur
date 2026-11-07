@@ -54,13 +54,15 @@ Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20**, intégrée à Hom
 
 La sonde n'a pas de Wi-Fi : le nouveau firmware lui est envoyé par Zigbee, par Zigbee2MQTT. La version **v1.0** (la première avec l'OTA) doit être flashée en USB. Toutes les suivantes peuvent passer en OTA.
 
-### Index OTA (déjà en place)
+### Index OTA
 
-Zigbee2MQTT utilise l'index partagé `ota_index.json` du dépôt [capteur-temp-rature-scd40_zigbee](https://github.com/Flo69au/capteur-temp-rature-scd40_zigbee), qui sert aussi au capteur SCD40 et au Levoit :
+Ce dépôt publie son propre `ota_index.json` (les entrées de la sonde radiateur uniquement). Le dépôt
+[zigbee-ota](https://github.com/Flo69au/zigbee-ota) le fusionne toutes les heures avec ceux du capteur SCD40
+et du Levoit, et c'est cet index commun que lit Zigbee2MQTT :
 
 ```yaml
 ota:
-  zigbee_ota_override_index_location: https://raw.githubusercontent.com/Flo69au/capteur-temp-rature-scd40_zigbee/main/ota_index.json
+  zigbee_ota_override_index_location: https://raw.githubusercontent.com/Flo69au/zigbee-ota/main/ota_index.json
 ```
 
 Les images `.ota` sont publiées en pièces jointes des **Releases GitHub** de ce dépôt-ci, et l'index pointe vers elles.
@@ -76,13 +78,14 @@ Identifiants OTA, identiques dans le firmware et dans le script : fabricant `0x1
    ```
    Ajouter une ligne dans `CHANGELOG.md`.
 2. Arduino IDE : **Croquis > Exporter les binaires compilés**. Le fichier utile est `build/…/sonde_zigbee_2x_ds18b20.ino.bin` (pas le `.merged.bin`).
-3. Générer l'image OTA et mettre à jour l'index (Python 3, sans dépendance), avec un clone local du dépôt de l'index :
+3. Générer l'image OTA et mettre à jour l'index de ce dépôt (Python 3, sans dépendance) :
    ```bash
-   python tools/make_ota.py firmware/sonde_zigbee_2x_ds18b20/build/esp32.esp32.esp32h2/sonde_zigbee_2x_ds18b20.ino.bin --index ../capteur-temp-rature-scd40_zigbee/ota_index.json
+   python tools/make_ota.py firmware/sonde_zigbee_2x_ds18b20/build/esp32.esp32.esp32h2/sonde_zigbee_2x_ds18b20.ino.bin --index ota_index.json
    ```
    Le script lit la version dans le binaire et crée `dist/sonde-radiateur-v1.1.ota`. Dans l'index, il remplace seulement l'entrée de la sonde radiateur, avec l'URL de la release : les autres appareils ne sont pas touchés.
 4. GitHub, ce dépôt : **Releases > Draft a new release**, tag `v1.1`, joindre `dist/sonde-radiateur-v1.1.ota`, publier.
-5. Pousser `ota_index.json` dans le dépôt `capteur-temp-rature-scd40_zigbee`.
+5. Pousser `ota_index.json` dans ce dépôt. L'index commun `zigbee-ota` le reprend dans l'heure
+   (ou tout de suite : dépôt `zigbee-ota` → *Actions* → *Fusion des index OTA* → *Run workflow*).
 6. Zigbee2MQTT, onglet **OTA** : **Vérifier** sur la sonde, puis **Mettre à jour**. Avec `default_maximum_data_size: 50`, le transfert se fait par petits blocs : compter jusqu'à une heure environ selon la taille du firmware. La sonde continue d'envoyer ses températures pendant ce temps, puis redémarre sur la nouvelle version.
 
 Pour contrôler une image : `python tools/make_ota.py --info dist/sonde-radiateur-v1.1.ota`.
