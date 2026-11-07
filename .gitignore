@@ -1,0 +1,15 @@
+# Sorties de compilation Arduino
+build/
+*.bin
+*.elf
+*.map
+
+# Images OTA générées (publiées dans les Releases GitHub, pas dans le dépôt)
+dist/
+*.ota
+
+# Divers
+__pycache__/
+.DS_Store
+Thumbs.db
+.vscode/
