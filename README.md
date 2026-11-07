@@ -1,11 +1,11 @@
 # Sonde de température radiateur Zigbee
 
-Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20**, intégrée à Home Assistant via **Zigbee2MQTT**. Les mises à jour du firmware se font **en OTA par Zigbee**, sans câble.
+Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20** (entrée et sortie du radiateur), intégrée à Home Assistant via **Zigbee2MQTT**. Les mises à jour du firmware se font **en OTA par le réseau Zigbee**, publiées automatiquement par GitHub Actions.
 
-- 2 températures (une sonde par bus 1-Wire), mesurées et envoyées toutes les 30 s (`SEND_INTERVAL_MS`)
+- Températures d'**entrée** et de **sortie**, mesurées et envoyées toutes les 30 s (`SEND_INTERVAL_MS`)
 - Bouton d'appairage : appui 3 s pour (ré)appairer, appui court pour forcer un envoi
-- LED d'état : appairé / non appairé / envoi en cours
-- Mises à jour OTA depuis l'onglet OTA de Zigbee2MQTT, versions v1.0, v1.1, v1.2…
+- LED d'état : appairé / non appairé / envoi / OTA en cours
+- Client OTA Zigbee avec garde-fou (redémarrage si une OTA échoue ou dure plus de 2 h)
 
 ## Matériel et câblage
 
@@ -20,17 +20,19 @@ Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20**, intégrée à Hom
 
 À éviter sur le H2 : GPIO 2, 3, 8, 9, 25 (strapping), 26/27 (USB), 23/24 (UART). Câbles longs (> 5–10 m) : pull-up de 2,2 kΩ.
 
-## Compilation (Arduino IDE)
+## Flash USB (Arduino IDE)
 
-1. Core **Arduino-ESP32 3.x** (gestionnaire de cartes « esp32 » d'Espressif).
+1. Core **Arduino-ESP32 3.3.x** (la CI utilise la 3.3.12).
 2. Bibliothèques : **OneWireNg** et **DallasTemperature** (installer cette dernière *sans les dépendances*). Ne pas garder la lib *OneWire* de Paul Stoffregen : elle ne compile pas sur ESP32-H2 et entre en conflit avec OneWireNg.
 3. Menu Outils :
    - Carte : **ESP32H2 Dev Module**
    - USB CDC On Boot : **Enabled**
-   - Zigbee mode : **Zigbee ED (end device)**, ou **Zigbee ZCZR** pour en faire un routeur si alimentation permanente
-   - Partition Scheme : **Zigbee 4MB with spiffs** (ou la variante ZCZR) — ces schémas contiennent les deux partitions nécessaires à l'OTA
-   - Erase All Flash Before Sketch Upload : **Enabled** au premier flash
-4. Ouvrir `firmware/sonde_zigbee_2x_ds18b20/sonde_zigbee_2x_ds18b20.ino` et téléverser en USB.
+   - Zigbee mode : **Zigbee ED (end device)**
+   - Partition Scheme : **Zigbee 4MB with spiffs** (contient `zb_storage` et les deux partitions OTA `app0`/`app1`)
+   - Erase All Flash Before Sketch Upload : **Disabled** (garde l'appairage)
+4. Ouvrir `firmware/sonde_zigbee_2x_ds18b20/sonde_zigbee_2x_ds18b20.ino` et téléverser.
+
+La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le sketch. Elle doit toujours être **égale au dernier tag publié**.
 
 ## Zigbee2MQTT
 
@@ -45,57 +47,41 @@ Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20**, intégrée à Hom
 | Rouge clignotant | Non appairé : recherche d'un réseau, ou réseau perdu |
 | Vert fixe faible | Appairé (éteinte si `LED_PAIRED_STEADY = false`) |
 | Vert vif 1,5 s | Appairage réussi |
-| Flash bleu | Envoi d'une température |
+| Flash bleu | Envoi des températures |
 | Flash blanc | Appui court : mesure et envoi forcés |
 | Orange fixe | Bouton maintenu (relâcher avant le violet annule) |
 | Violet | Réinitialisation Zigbee puis redémarrage en mode appairage |
+| Cyan clignotant rapide | Mise à jour OTA en cours : envois et boutons suspendus, ne pas couper l'alimentation |
 
 ## Mises à jour OTA
 
-La sonde n'a pas de Wi-Fi : le nouveau firmware lui est envoyé par Zigbee, par Zigbee2MQTT. La version **v1.0** (la première avec l'OTA) doit être flashée en USB. Toutes les suivantes peuvent passer en OTA.
+Système commun à tous mes projets Zigbee : voir [Flo69au/zigbee-ota](https://github.com/Flo69au/zigbee-ota).
 
-### Index OTA
+- Couple réservé à ce projet : fabricant **`0x1337`**, type d'image **`0x0002`**, modèle **`H2-2xDS18B20`**.
+- Version Zigbee = **`0xMMmmPP00`** : v1.0 → `0x01000000`, v1.1 → `0x01010000`, v1.2.3 → `0x01020300`.
+- Ce dépôt publie ses images dans ses Releases et tient son `ota_index.json` (uniquement la sonde). `zigbee-ota` le fusionne dans l'index commun lu par Zigbee2MQTT, toutes les heures (hh:23).
 
-Ce dépôt publie son propre `ota_index.json` (les entrées de la sonde radiateur uniquement). Le dépôt
-[zigbee-ota](https://github.com/Flo69au/zigbee-ota) le fusionne toutes les heures avec ceux du capteur SCD40
-et du Levoit, et c'est cet index commun que lit Zigbee2MQTT :
+### Publier une nouvelle version
 
-```yaml
-ota:
-  zigbee_ota_override_index_location: https://raw.githubusercontent.com/Flo69au/zigbee-ota/main/ota_index.json
-```
+1. Modifier le code. Mettre la valeur par défaut de `OTA_FW_VERSION` à la future version (ex. `0x01010000 // v1.1`), ajouter une ligne dans `CHANGELOG.md`, pousser.
+2. GitHub : **Releases → Draft a new release → nouveau tag `v1.1` → Publish release**.
+3. Le workflow **Release OTA Zigbee** (`.github/workflows/ota-release.yml`) compile le firmware avec la version du tag, fabrique `1337-0002-01010000-ota-file.zigbee`, le joint à la release et met à jour `ota_index.json`.
+4. Attendre la fusion de `zigbee-ota` (hh:23), ou la lancer : *Actions → Fusion des index OTA → Run workflow*.
+5. Zigbee2MQTT : fiche de la sonde → onglet OTA → *Check for updates* → *Update*. Compter environ 1 h avec des blocs de 50 octets, sans redémarrer Z2M ni toucher la sonde pendant le transfert.
+6. Vérifier `installed_version` dans l'onglet État de Z2M.
 
-Les images `.ota` sont publiées en pièces jointes des **Releases GitHub** de ce dépôt-ci, et l'index pointe vers elles.
+### En cas d'échec
 
-Identifiants OTA, identiques dans le firmware et dans le script : fabricant `0x1337` (4919, le même que le SCD40), type d'image `2` (le SCD40 est en type `1`). Chaque appareil ne peut donc recevoir que son propre firmware. La version Zigbee vaut `0xMMmm0000` (v1.1 = `0x01010000` = 16842752).
-
-### À chaque nouvelle version
-
-1. Dans le `.ino`, incrémenter la version :
-   ```cpp
-   #define FW_VERSION_MAJOR 1
-   #define FW_VERSION_MINOR 1   // 1.0 -> 1.1 -> 1.2 ...
-   ```
-   Ajouter une ligne dans `CHANGELOG.md`.
-2. Arduino IDE : **Croquis > Exporter les binaires compilés**. Le fichier utile est `build/…/sonde_zigbee_2x_ds18b20.ino.bin` (pas le `.merged.bin`).
-3. Générer l'image OTA et mettre à jour l'index de ce dépôt (Python 3, sans dépendance) :
-   ```bash
-   python tools/make_ota.py firmware/sonde_zigbee_2x_ds18b20/build/esp32.esp32.esp32h2/sonde_zigbee_2x_ds18b20.ino.bin --index ota_index.json
-   ```
-   Le script lit la version dans le binaire et crée `dist/sonde-radiateur-v1.1.ota`. Dans l'index, il remplace seulement l'entrée de la sonde radiateur, avec l'URL de la release : les autres appareils ne sont pas touchés.
-4. GitHub, ce dépôt : **Releases > Draft a new release**, tag `v1.1`, joindre `dist/sonde-radiateur-v1.1.ota`, publier.
-5. Pousser `ota_index.json` dans ce dépôt. L'index commun `zigbee-ota` le reprend dans l'heure
-   (ou tout de suite : dépôt `zigbee-ota` → *Actions* → *Fusion des index OTA* → *Run workflow*).
-6. Zigbee2MQTT, onglet **OTA** : **Vérifier** sur la sonde, puis **Mettre à jour**. Avec `default_maximum_data_size: 50`, le transfert se fait par petits blocs : compter jusqu'à une heure environ selon la taille du firmware. La sonde continue d'envoyer ses températures pendant ce temps, puis redémarre sur la nouvelle version.
-
-Pour contrôler une image : `python tools/make_ota.py --info dist/sonde-radiateur-v1.1.ota`.
+- Le garde-fou redémarre la sonde si l'OTA s'interrompt. Sinon, la débrancher et la rebrancher avant de réessayer.
+- Diagnostic : flasher avec *Outils → Core Debug Level → Info*, garder le moniteur série ouvert pendant l'OTA et relever les lignes `Zigbee - …`. Échec vers 0 % : début, en-tête ou taille de bloc. Au milieu : transfert ou écriture flash. Vers 100 % : vérification finale.
+- Ne pas mettre `default_maximum_data_size: 100` dans Z2M : l'OTA échoue dès le début.
 
 ## Structure du dépôt
 
 ```
-firmware/sonde_zigbee_2x_ds18b20/   sketch Arduino
-z2m/h2_2xds18b20.mjs                convertisseur externe Zigbee2MQTT 2.x
-tools/make_ota.py                   création des images OTA + mise à jour de l'index
-dist/                               images .ota générées (non versionnées, publiées en Releases)
-CHANGELOG.md                        historique des versions
+firmware/sonde_zigbee_2x_ds18b20/    sketch Arduino
+z2m/h2_2xds18b20.mjs                 convertisseur externe Zigbee2MQTT 2.x
+.github/workflows/ota-release.yml    compilation + image OTA + release + index, à chaque tag
+ota_index.json                       index OTA de ce projet (mis à jour par la CI)
+CHANGELOG.md                         historique des versions
 ```

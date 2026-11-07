@@ -1,0 +1,201 @@
+# Publie automatiquement une mise à jour OTA Zigbee de la sonde radiateur (ESP32-H2 + 2x DS18B20)
+# à chaque tag "v<majeur>.<mineur>" poussé sur GitHub (ex: v1.0, v1.1, v1.2.1), ou créé
+# depuis l'interface web : Releases -> Draft a new release -> tag "v1.1" -> Publish.
+#
+# Ce que fait ce workflow :
+#   1. compile firmware/sonde_zigbee_2x_ds18b20 avec OTA_FW_VERSION = version du tag (0xMMmmPP00)
+#   2. emballe le .bin en image OTA Zigbee (.zigbee) avec l'outil Espressif
+#   3. publie le .zigbee dans une Release GitHub
+#   4. met à jour ota_index.json sur la branche principale
+#
+# ota_index.json ne contient que la sonde radiateur. L'index commun lu par
+# Zigbee2MQTT (CO2 + Levoit + sonde radiateur) est fusionné toutes les heures
+# par le dépôt Flo69au/zigbee-ota (configuration.yaml) :
+#   ota:
+#     zigbee_ota_override_index_location: https://raw.githubusercontent.com/Flo69au/zigbee-ota/main/ota_index.json
+#
+# Le repo doit être PUBLIC (Zigbee2MQTT ne sait pas s'authentifier sur GitHub).
+
+name: Release OTA Zigbee
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'V*'
+  workflow_dispatch:        # bouton "Run workflow" dans l'onglet Actions
+
+permissions:
+  contents: write
+
+env:
+  SKETCH_DIR: firmware/sonde_zigbee_2x_ds18b20
+  SKETCH_NAME: sonde_zigbee_2x_ds18b20
+  FQBN: esp32:esp32:esp32h2:PartitionScheme=zigbee,ZigbeeMode=ed
+  ESP32_CORE_VERSION: "3.3.12"
+  ESP32_INDEX_URL: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+  # Doivent correspondre au sketch (OTA_MANUFACTURER_ID / OTA_IMAGE_TYPE / ZB_MODEL)
+  OTA_MANUFACTURER_ID: "0x1337"
+  OTA_IMAGE_TYPE: "0x0002"
+  ZB_MODEL: H2-2xDS18B20
+  ONEWIRENG_VERSION: "0.14.1"
+  DALLAS_VERSION: "4.0.6"
+  # Index d'autres appareils à recopier ici : vide, la fusion est faite par Flo69au/zigbee-ota
+  EXTRA_INDEX_URLS: ""
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Version depuis le tag
+        id: ver
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # Tags acceptés : v1.0, v1.1, v2.3, ou avec correctif v1.2.1 (v ou V)
+          # Version OTA Zigbee = 0xMMmmPP00 (majeur, mineur, correctif), ex: v1.1 -> 0x01010000
+          T="${GITHUB_REF_NAME#[vV]}"
+          if ! [[ "$T" =~ ^([0-9]+)\.([0-9]+)(\.([0-9]+))?$ ]]; then
+            echo "::error::Le tag doit être de la forme v1.0, v1.1 ou v1.2.3 ; reçu : $GITHUB_REF_NAME"
+            exit 1
+          fi
+          MA=${BASH_REMATCH[1]}; MI=${BASH_REMATCH[2]}; PA=${BASH_REMATCH[4]:-0}
+          if (( MA > 255 || MI > 255 || PA > 255 )); then
+            echo "::error::Chaque numéro doit être <= 255"; exit 1
+          fi
+          NUM=$(( (MA << 24) | (MI << 16) | (PA << 8) ))
+          echo "num=$NUM" >> "$GITHUB_OUTPUT"
+          echo "hex=$(printf '0x%08X' "$NUM")" >> "$GITHUB_OUTPUT"
+          echo "label=$MA.$MI.$PA" >> "$GITHUB_OUTPUT"
+          echo "Version $MA.$MI.$PA -> $(printf '0x%08X' "$NUM")"
+
+      - uses: arduino/setup-arduino-cli@v2.0.0
+        if: startsWith(github.ref, 'refs/tags/')
+
+      - name: Installer le core ESP32 et les librairies 1-Wire
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          arduino-cli core update-index --additional-urls "$ESP32_INDEX_URL"
+          arduino-cli core install "esp32:esp32@${ESP32_CORE_VERSION}" --additional-urls "$ESP32_INDEX_URL"
+          arduino-cli lib install "OneWireNg@${ONEWIRENG_VERSION}"
+          # Sans la lib OneWire de Paul Stoffregen : OneWireNg fournit OneWire.h (H2 compatible)
+          arduino-cli lib install --no-deps "DallasTemperature@${DALLAS_VERSION}"
+          if arduino-cli lib list | grep -qE '^OneWire '; then
+            echo "::error::La lib OneWire est installée et entre en conflit avec OneWireNg"; exit 1
+          fi
+          arduino-cli lib list
+
+      - name: Compiler le firmware
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          arduino-cli compile --fqbn "$FQBN" \
+            --build-property "build.defines=-DOTA_FW_VERSION=${{ steps.ver.outputs.hex }}" \
+            --output-dir build "$SKETCH_DIR"
+          ls -la build
+
+      - name: Construire l'image OTA Zigbee
+        id: img
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          curl -sSfL -o image_builder_tool.py \
+            https://raw.githubusercontent.com/espressif/esp-zigbee-sdk/main/tools/image_builder_tool/image_builder_tool.py
+          python3 image_builder_tool.py \
+            --manuf-id "$OTA_MANUFACTURER_ID" --image-type "$OTA_IMAGE_TYPE" \
+            --file-version "${{ steps.ver.outputs.hex }}" \
+            --tag 0x0000 "build/${SKETCH_NAME}.ino.bin"
+          FILE=$(ls *-ota-file.zigbee)
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          ls -la "$FILE"
+
+      - name: Publier la Release GitHub
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # La release peut déjà exister si le tag a été créé depuis l'interface
+          # GitHub (Releases -> Draft a new release) : on y ajoute alors l'image.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${{ steps.img.outputs.file }}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${{ steps.img.outputs.file }}" \
+              --title "Firmware $GITHUB_REF_NAME" \
+              --notes "Image OTA Zigbee version ${{ steps.ver.outputs.label }} (${{ steps.ver.outputs.hex }})."
+          fi
+
+      - name: Mettre à jour l'index commun ota_index.json
+        env:
+          FILE: ${{ steps.img.outputs.file }}
+          VERSION: ${{ steps.ver.outputs.num }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
+          python3 - <<'EOF'
+          import hashlib, json, os, urllib.request
+          model = os.environ["ZB_MODEL"]
+          manuf = int(os.environ["OTA_MANUFACTURER_ID"], 0)
+          itype = int(os.environ["OTA_IMAGE_TYPE"], 0)
+
+          def is_own(e):
+              return e.get("modelId") == model or (
+                  e.get("manufacturerCode") == manuf and e.get("imageType") == itype)
+
+          try:
+              current = json.load(open("ota_index.json"))
+          except Exception:
+              current = []
+
+          f = os.environ.get("FILE")
+          if f:
+              # Nouvelle version de la sonde (run déclenché par un tag)
+              data = open(f, "rb").read()
+              own = [{
+                  "fileName": f,
+                  "fileVersion": int(os.environ["VERSION"]),
+                  "fileSize": len(data),
+                  "url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}/{f}",
+                  "imageType": itype,
+                  "manufacturerCode": manuf,
+                  "modelId": model,
+                  "sha512": hashlib.sha512(data).hexdigest(),
+              }]
+          else:
+              # Run manuel : on garde l'entrée existante de la sonde
+              own = [e for e in current if is_own(e)]
+
+          # Entrées des autres appareils, recopiées depuis leurs propres index.
+          # Si un index est inaccessible, on garde ses anciennes entrées.
+          extra = []
+          old_extra = [e for e in current if not is_own(e)]
+          for url in os.environ.get("EXTRA_INDEX_URLS", "").split():
+              try:
+                  with urllib.request.urlopen(url, timeout=30) as r:
+                      entries = json.load(r)
+                  extra += [e for e in entries if not is_own(e)]
+                  print(f"OK {url}: {len(entries)} entrée(s)")
+              except Exception as ex:
+                  print(f"::warning::Index inaccessible {url}: {ex} (anciennes entrées conservées)")
+                  extra += old_extra
+          # dédoublonnage par URL
+          seen, merged = set(), []
+          for e in own + extra:
+              if e.get("url") not in seen:
+                  seen.add(e.get("url")); merged.append(e)
+
+          # Pas de "force": true, sinon Z2M proposerait la MAJ en boucle
+          with open("ota_index.json", "w") as out:
+              json.dump(merged, out, indent=2)
+              out.write("\n")
+          print(json.dumps(merged, indent=2))
+          EOF
+          if git diff --quiet -- ota_index.json; then
+            echo "Index inchangé, rien à pousser."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ota_index.json
+          git commit -m "OTA: index commun -> ${GITHUB_REF_NAME}"
+          git push origin "$DEFAULT_BRANCH"

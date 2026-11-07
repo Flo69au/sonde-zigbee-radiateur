@@ -2,7 +2,7 @@
  * Sonde de température Zigbee : ESP32-H2 + 2x DS18B20 (un bus 1-Wire par sonde)
  *                               + bouton d'appairage externe
  * ==============================================================================
- * Core Arduino-ESP32 3.x (bibliothèque Zigbee intégrée au core)
+ * Core Arduino-ESP32 3.3.x (bibliothèque Zigbee intégrée au core), CI épinglée sur 3.3.12
  *
  * Bibliothèques (gestionnaire de bibliothèques Arduino) :
  *   - OneWireNg          (Piotr Stolarz)  -> fournit un OneWire.h compatible
@@ -13,11 +13,10 @@
  * Réglages Arduino IDE (menu Outils) :
  *   Carte             : ESP32H2 Dev Module
  *   USB CDC On Boot   : Enabled (logs sur l'USB natif)
- *   Zigbee mode       : "Zigbee ED (end device)"              -> appareil terminal (défaut)
- *                    ou "Zigbee ZCZR (coordinator/router)"    -> routeur (alim USB permanente)
- *   Partition Scheme  : "Zigbee 4MB with spiffs"               (mode ED)
- *                    ou "Zigbee ZCZR 4MB with spiffs"          (mode routeur)
- *   Erase All Flash Before Sketch Upload : Enabled au 1er flash / changement de mode
+ *   Zigbee mode       : Zigbee ED (end device)
+ *   Partition Scheme  : Zigbee 4MB with spiffs (zb_storage + partitions OTA app0/app1)
+ *   Erase All Flash Before Sketch Upload : Disabled (garde l'appairage)
+ *   Core Debug Level  : Info pour diagnostiquer une OTA (lignes "Zigbee - ...")
  *
  * Câblage : un GPIO + une pull-up 4,7 kΩ par sonde (alimentation normale, pas parasite)
  *
@@ -48,6 +47,8 @@
  *   flash blanc      -> appui court sur le bouton
  *   orange fixe      -> bouton maintenu (relâcher annule tant que ce n'est pas violet)
  *   violet           -> réinitialisation Zigbee, reboot en mode appairage
+ *   cyan clignotant  -> mise à jour OTA en cours (envois et boutons suspendus,
+ *                       ne pas couper l'alimentation)
  *
  * Côté Zigbee : 2 endpoints "Temperature Measurement" (cluster 0x0402)
  *   endpoint 10 = température d'ENTRÉE (GPIO4)  -> temperature_entree dans Z2M
@@ -55,12 +56,12 @@
  *   + client OTA Upgrade (cluster 0x0019) sur l'endpoint 10 : mise à jour via Zigbee2MQTT
  *
  * Mises à jour OTA (voir README.md) :
- *   1. incrémenter FW_VERSION_MINOR (1.0 -> 1.1 -> 1.2 ...)
- *   2. Arduino IDE : Croquis > Exporter les binaires compilés
- *   3. python tools/make_ota.py <le .ino.bin> --index <clone>/capteur-temp-rature-scd40_zigbee/ota_index.json
- *   4. Release GitHub v1.x avec le .ota (dist/) + pousser ota_index.json
- *   5. Zigbee2MQTT : onglet OTA > Vérifier > Mettre à jour
- *   La toute première version avec OTA (v1.0) doit être flashée en USB.
+ *   Publier une release GitHub avec un tag v<majeur>.<mineur>[.<correctif>] (v1.1, v1.2.1...).
+ *   Le workflow .github/workflows/ota-release.yml compile ce sketch avec
+ *   OTA_FW_VERSION = version du tag (0xMMmmPP00), fabrique l'image .zigbee avec
+ *   image_builder_tool.py, la joint à la release et met à jour ota_index.json.
+ *   L'index commun Flo69au/zigbee-ota (lu par Zigbee2MQTT) le fusionne toutes les heures.
+ *   La première version avec client OTA (v1.0) se flashe en USB.
  */
 
 #if !defined(ZIGBEE_MODE_ED) && !defined(ZIGBEE_MODE_ZCZR)
@@ -73,29 +74,31 @@
 #include <math.h>
 #include <string.h>
 
-// ============================ Version firmware ============================
-// Numérotation v<majeur>.<mineur> : à chaque mise à jour, incrémenter FW_VERSION_MINOR.
-// Une image OTA n'est proposée par Z2M que si sa version est plus grande que celle installée.
+// ============================ OTA ============================
+// Version de CE firmware, format 0xMMmmPP00 (majeur.mineur.correctif) :
+//   v1.0 -> 0x01000000, v1.1 -> 0x01010000, v1.2.3 -> 0x01020300
+// Pour une release GitHub, elle est imposée depuis le tag via -DOTA_FW_VERSION.
+// La valeur par défaut ci-dessous sert au flash USB depuis l'Arduino IDE : la garder
+// ÉGALE au dernier tag publié, pour que Zigbee2MQTT ne repropose pas une mise à jour
+// déjà installée.
+#ifndef OTA_FW_VERSION
+#define OTA_FW_VERSION       0x01000000  // v1.0
+#endif
+#define OTA_HW_VERSION       0x0101      // version matérielle (rarement à changer)
+// Couple fabricant / type d'image réservé à ce projet (voir Flo69au/zigbee-ota) :
+// doit correspondre à .github/workflows/ota-release.yml
+#define OTA_MANUFACTURER_ID  0x1337
+#define OTA_IMAGE_TYPE       0x0002
 
-#define FW_VERSION_MAJOR 1
-#define FW_VERSION_MINOR 0
+// Garde-fou OTA : la lib Zigbee ne prévient pas le sketch quand une mise à jour est
+// annulée (ABORT) et garde alors un état interne incohérent qui fait échouer les
+// tentatives suivantes. Si l'OTA se termine sans redémarrer, ou dure plus de 2 h,
+// le firmware redémarre pour repartir sur un état propre.
+#define OTA_MAX_DURATION_MS  (2UL * 60UL * 60UL * 1000UL)  // 2 h
 
-#define STR_(x) #x
-#define STR(x)  STR_(x)
-#define FW_VERSION_STR STR(FW_VERSION_MAJOR) "." STR(FW_VERSION_MINOR)
-
-// Version Zigbee sur 32 bits : 0xMMmm0000 (v1.1 = 0x01010000, v1.2 = 0x01020000)
-const uint32_t FW_FILE_VERSION = ((uint32_t)FW_VERSION_MAJOR << 24) | ((uint32_t)FW_VERSION_MINOR << 16);
-
-// Marqueur lu par tools/make_ota.py dans le .bin pour fabriquer l'image OTA à la bonne version
-__attribute__((used)) static const char FW_MARKER[] = "SONDE_FW_VERSION=" FW_VERSION_STR ";";
-
-// Identifiants OTA : doivent être identiques dans tools/make_ota.py
-// 0x1337 = code fabricant "maison" (comme le capteur SCD40), type 2 = sonde radiateur
-// (le SCD40 est en type 1) : chaque appareil ne reçoit que son propre firmware.
-#define OTA_MANUFACTURER 0x1337
-#define OTA_IMAGE_TYPE   0x0002
-#define OTA_HW_VERSION   0x0001
+volatile bool otaRunning = false;
+volatile bool otaEnded = false;           // OTA terminée sans redémarrage auto (= échec)
+volatile uint32_t otaStartMs = 0;
 
 // ============================ Configuration ============================
 
@@ -191,6 +194,42 @@ void ledUpdate() {
   } else {
     led(0, 0, 0);                // appairé : éteinte entre deux envois
   }
+}
+
+// ============================ OTA : suivi d'état ============================
+
+// Appelé par la lib Zigbee au début et à la fin d'une mise à jour OTA
+void onOTAStateChange(bool active) {
+  if (active) {
+    otaStartMs = millis();
+    otaEnded = false;
+  } else if (otaRunning) {
+    otaEnded = true;   // en cas de succès la lib redémarre d'elle-même juste après
+  }
+  otaRunning = active;
+  Serial.println(active ? "OTA : mise à jour démarrée" : "OTA : terminée");
+}
+
+// À appeler en tête de loop() : renvoie true tant qu'une OTA est en cours
+// (le reste de la boucle est alors sauté : pas d'envoi, boutons désactivés).
+bool otaGuard() {
+  if (otaEnded) {
+    Serial.println("OTA interrompue -> redémarrage pour repartir sur un état propre");
+    led(LED_BRIGHT, 0, 0);
+    delay(2000);
+    ESP.restart();
+  }
+  if (!otaRunning) return false;
+
+  if (millis() - otaStartMs > OTA_MAX_DURATION_MS) {
+    Serial.println("OTA bloquée depuis plus de 2 h -> redémarrage");
+    delay(500);
+    ESP.restart();
+  }
+  // cyan clignotant rapide : OTA en cours, ne pas couper l'alimentation
+  if ((millis() / 150) % 2) led(0, LED_BRIGHT, LED_BRIGHT);
+  else                      led(0, 0, 0);
+  return true;
 }
 
 // ============================ Utilitaires ============================
@@ -319,9 +358,11 @@ void handleButtons() {
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.printf("\n=== Sonde Zigbee ESP32-H2 + 2x DS18B20 : firmware v%s (0x%08lX) ===\n",
-                FW_VERSION_STR, (unsigned long)FW_FILE_VERSION);
-  Serial.println(FW_MARKER);
+  Serial.printf("\n=== Sonde Zigbee ESP32-H2 + 2x DS18B20 : firmware v%lu.%lu.%lu (0x%08lX) ===\n",
+                (unsigned long)((OTA_FW_VERSION >> 24) & 0xFF),
+                (unsigned long)((OTA_FW_VERSION >> 16) & 0xFF),
+                (unsigned long)((OTA_FW_VERSION >> 8) & 0xFF),
+                (unsigned long)OTA_FW_VERSION);
 
   pinMode(PAIR_BUTTON_PIN, INPUT_PULLUP);
   pinMode(BOOT_PIN, INPUT_PULLUP);
@@ -336,8 +377,9 @@ void setup() {
   }
 
   // Client OTA sur l'endpoint d'entrée (doit être ajouté avant addEndpoint)
-  zbEntree.addOTAClient(FW_FILE_VERSION, FW_FILE_VERSION, OTA_HW_VERSION,
-                        OTA_MANUFACTURER, OTA_IMAGE_TYPE);
+  zbEntree.addOTAClient(OTA_FW_VERSION, OTA_FW_VERSION, OTA_HW_VERSION,
+                        OTA_MANUFACTURER_ID, OTA_IMAGE_TYPE);
+  zbEntree.onOTAStateChange(onOTAStateChange);
 
   // Déclaration des deux endpoints température
   for (uint8_t s = 0; s < 2; s++) {
@@ -386,6 +428,12 @@ void setup() {
 }
 
 void loop() {
+  // Pendant une OTA : ni mesures, ni envois, ni boutons (reset en plein flash = brique)
+  if (otaGuard()) {
+    delay(10);
+    return;
+  }
+
   handleButtons();
   ledUpdate();   // vert fixe si appairé, rouge clignotant si réseau perdu
 

@@ -4,8 +4,8 @@ build/
 *.elf
 *.map
 
-# Images OTA générées (publiées dans les Releases GitHub, pas dans le dépôt)
-dist/
+# Images OTA générées (publiées dans les Releases GitHub par la CI, pas dans le dépôt)
+*.zigbee
 *.ota
 
 # Divers
