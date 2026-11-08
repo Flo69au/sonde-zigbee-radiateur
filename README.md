@@ -27,9 +27,11 @@ Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20** (entrée et sortie
 3. Menu Outils :
    - Carte : **ESP32H2 Dev Module**
    - USB CDC On Boot : **Enabled**
-   - Zigbee mode : **Zigbee ED (end device)**
-   - Partition Scheme : **Zigbee 4MB with spiffs** (contient `zb_storage` et les deux partitions OTA `app0`/`app1`)
-   - Erase All Flash Before Sketch Upload : **Disabled** (garde l'appairage)
+   - Zigbee mode : **Zigbee ZCZR (coordinator/router)** : la sonde est un **routeur** Zigbee (alimentation permanente, elle relaie les autres appareils et renforce le maillage)
+   - Partition Scheme : **Zigbee ZCZR 4MB with spiffs** (contient `zb_storage` et les deux partitions OTA `app0`/`app1`)
+   - Erase All Flash Before Sketch Upload : **Disabled** (garde l'appairage), sauf **une fois** si la carte avait un firmware ED : la table de partitions n'est pas la même. Réappairer ensuite.
+
+   Le sketch refuse de compiler (`#error`) si le mode ZCZR n'est pas sélectionné.
 4. Ouvrir `firmware/sonde_zigbee_2x_ds18b20/sonde_zigbee_2x_ds18b20.ino` et téléverser.
 
 La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le sketch. Elle doit toujours être **égale au dernier tag publié**.
@@ -58,6 +60,7 @@ La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le
 Système commun à tous mes projets Zigbee : voir [Flo69au/zigbee-ota](https://github.com/Flo69au/zigbee-ota).
 
 - Couple réservé à ce projet : fabricant **`0x1337`**, type d'image **`0x0002`**, modèle **`H2-2xDS18B20`**.
+- Firmware **routeur (ZCZR)**, compilé par la CI avec `esp32:esp32:esp32h2:PartitionScheme=zigbee_zczr,ZigbeeMode=zczr`. Une sonde flashée en ED ne peut pas passer en ZCZR par OTA (partitions différentes) : il faut un flash USB avec effacement.
 - Version Zigbee = **`0xMMmmPP00`** : v1.0 → `0x01000000`, v1.1 → `0x01010000`, v1.2.3 → `0x01020300`.
 - Ce dépôt publie ses images dans ses Releases et tient son `ota_index.json` (uniquement la sonde). `zigbee-ota` le fusionne dans l'index commun lu par Zigbee2MQTT, toutes les heures (hh:23).
 

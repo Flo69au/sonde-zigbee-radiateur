@@ -31,7 +31,8 @@ permissions:
 env:
   SKETCH_DIR: firmware/sonde_zigbee_2x_ds18b20
   SKETCH_NAME: sonde_zigbee_2x_ds18b20
-  FQBN: esp32:esp32:esp32h2:PartitionScheme=zigbee,ZigbeeMode=ed
+  # Routeur Zigbee (ZCZR) : partitions zigbee_zczr, à garder identique au flash USB
+  FQBN: esp32:esp32:esp32h2:PartitionScheme=zigbee_zczr,ZigbeeMode=zczr
   ESP32_CORE_VERSION: "3.3.12"
   ESP32_INDEX_URL: https://espressif.github.io/arduino-esp32/package_esp32_index.json
   # Doivent correspondre au sketch (OTA_MANUFACTURER_ID / OTA_IMAGE_TYPE / ZB_MODEL)

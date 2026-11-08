@@ -13,9 +13,12 @@
  * Réglages Arduino IDE (menu Outils) :
  *   Carte             : ESP32H2 Dev Module
  *   USB CDC On Boot   : Enabled (logs sur l'USB natif)
- *   Zigbee mode       : Zigbee ED (end device)
- *   Partition Scheme  : Zigbee 4MB with spiffs (zb_storage + partitions OTA app0/app1)
+ *   Zigbee mode       : Zigbee ZCZR (coordinator/router) -> la sonde est un routeur Zigbee
+ *                       (alimentation permanente, elle relaie les autres appareils)
+ *   Partition Scheme  : Zigbee ZCZR 4MB with spiffs (zb_storage + partitions OTA app0/app1)
  *   Erase All Flash Before Sketch Upload : Disabled (garde l'appairage)
+ *                       Enabled UNE fois si la carte avait un firmware ED (table de
+ *                       partitions différente), puis réappairer.
  *   Core Debug Level  : Info pour diagnostiquer une OTA (lignes "Zigbee - ...")
  *
  * Câblage : un GPIO + une pull-up 4,7 kΩ par sonde (alimentation normale, pas parasite)
@@ -64,8 +67,8 @@
  *   La première version avec client OTA (v1.0) se flashe en USB.
  */
 
-#if !defined(ZIGBEE_MODE_ED) && !defined(ZIGBEE_MODE_ZCZR)
-#error "Choisis Outils > Zigbee mode : 'Zigbee ED (end device)' ou 'Zigbee ZCZR (coordinator/router)'"
+#ifndef ZIGBEE_MODE_ZCZR
+#error "Sélectionne 'Zigbee ZCZR (coordinator/router)' dans Outils -> Zigbee mode (et Partition Scheme 'Zigbee ZCZR 4MB with spiffs')"
 #endif
 
 #include "Zigbee.h"
@@ -389,13 +392,8 @@ void setup() {
     Zigbee.addEndpoint(zbSondes[s]);
   }
 
-#if defined(ZIGBEE_MODE_ZCZR)
   bool ok = Zigbee.begin(ZIGBEE_ROUTER);
   Serial.println("Mode Zigbee : routeur");
-#else
-  bool ok = Zigbee.begin();
-  Serial.println("Mode Zigbee : end device");
-#endif
 
   if (!ok) {
     Serial.println("Zigbee : échec du démarrage, reboot...");
