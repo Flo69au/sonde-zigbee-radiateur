@@ -388,7 +388,7 @@ void setup() {
   for (uint8_t s = 0; s < 2; s++) {
     zbSondes[s]->setManufacturerAndModel(ZB_MANUFACTURER, ZB_MODEL);
     zbSondes[s]->setMinMaxValue(-55, 125);  // plage du DS18B20
-    zbSondes[s]->setTolerance(0.5);         // précision constructeur ±0,5 °C
+    zbSondes[s]->setTolerance(0.1);         // précision constructeur ±0,5 °C
     Zigbee.addEndpoint(zbSondes[s]);
   }
 
