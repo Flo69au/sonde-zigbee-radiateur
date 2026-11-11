@@ -85,7 +85,7 @@
 // ÉGALE au dernier tag publié, pour que Zigbee2MQTT ne repropose pas une mise à jour
 // déjà installée.
 #ifndef OTA_FW_VERSION
-#define OTA_FW_VERSION       0x01000000  // v1.0
+#define OTA_FW_VERSION       0x01010000  // v1.1
 #endif
 #define OTA_HW_VERSION       0x0101      // version matérielle (rarement à changer)
 // Couple fabricant / type d'image réservé à ce projet (voir Flo69au/zigbee-ota) :

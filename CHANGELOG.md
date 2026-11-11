@@ -2,6 +2,12 @@
 
 Tags `v<majeur>.<mineur>[.<correctif>]`, version Zigbee `0xMMmmPP00`.
 
+## v1.1
+
+Première mise à jour OTA.
+
+- Tolérance de température annoncée à 0,1 °C (attribut ZCL Tolerance, informatif) au lieu de 0,5 °C
+
 ## v1.0
 
 Première version avec client OTA, à flasher en USB.
