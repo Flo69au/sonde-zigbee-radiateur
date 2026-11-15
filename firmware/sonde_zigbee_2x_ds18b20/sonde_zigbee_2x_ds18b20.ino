@@ -85,7 +85,7 @@
 // ÉGALE au dernier tag publié, pour que Zigbee2MQTT ne repropose pas une mise à jour
 // déjà installée.
 #ifndef OTA_FW_VERSION
-#define OTA_FW_VERSION       0x01010000  // v1.1
+#define OTA_FW_VERSION       0x01020000  // v1.2 (envoi sur variation de 0,1 °C ou toutes les heures)
 #endif
 #define OTA_HW_VERSION       0x0101      // version matérielle (rarement à changer)
 // Couple fabricant / type d'image réservé à ce projet (voir Flo69au/zigbee-ota) :
@@ -123,7 +123,12 @@ const uint16_t LED_SEND_MS  = 150;  // durée du flash bleu à chaque envoi
 #define ZB_MANUFACTURER "DIY"
 #define ZB_MODEL        "H2-2xDS18B20"   // doit correspondre au convertisseur Z2M
 
-const uint32_t SEND_INTERVAL_MS  = 30000;   // mesure + envoi des deux températures toutes les 30 s
+// Envoi vers Zigbee2MQTT : chaque sonde n'envoie que si sa température a varié
+// d'au moins TEMP_REPORT_DELTA_C depuis le dernier envoi, ou si elle n'a rien
+// envoyé depuis REPORT_HEARTBEAT_MS (envoi de sécurité). Plus d'envoi forcé périodique.
+const uint32_t MEASURE_INTERVAL_MS = 10000;   // lecture des deux sondes toutes les 10 s
+const float    TEMP_REPORT_DELTA_C = 0.1f;    // seuil de variation pour envoyer (°C)
+const uint32_t REPORT_HEARTBEAT_MS = 3600000; // envoi de sécurité : au moins 1 fois par heure
 const uint8_t  RESOLUTION_BITS   = 12;      // 12 bits = pas de 0,0625 °C, conversion 750 ms
 const uint32_t REDISCOVER_MS     = 60000;   // nouvelle recherche si une sonde manque
 const uint8_t  MAX_ERRORS        = 3;       // lectures invalides avant de déclarer la sonde absente
@@ -150,7 +155,9 @@ struct Sonde {
   DeviceAddress addr;
   bool present;
   uint8_t errors;
-  float lastReported;
+  float lastMeasured;       // dernière lecture valide
+  float lastReported;       // dernière valeur envoyée (NAN = jamais envoyée)
+  uint32_t lastReportMs;    // moment du dernier envoi
   uint32_t lastDiscoverMs;
 };
 Sonde sondes[2];
@@ -159,6 +166,7 @@ enum CycleState { IDLE, CONVERTING };
 CycleState state = IDLE;
 uint32_t tCycle = 0;
 uint32_t tConvStart = 0;
+bool forceReport = false;   // appui court sur le bouton : envoi immédiat des deux sondes
 
 // ============================ LED d'état ============================
 
@@ -305,24 +313,38 @@ void readAndReport() {
     }
 
     // 85,0 °C pile = valeur de mise sous tension (conversion pas faite) -> on ignore
-    if (t == 85.0f && (isnan(so.lastReported) || fabsf(so.lastReported - 85.0f) > 5.0f)) {
+    if (t == 85.0f && (isnan(so.lastMeasured) || fabsf(so.lastMeasured - 85.0f) > 5.0f)) {
       Serial.printf("[%s] 85 °C de démarrage ignoré\n", NOMS[s]);
       continue;
     }
 
     so.errors = 0;
-    so.lastReported = t;
+    so.lastMeasured = t;
     zbSondes[s]->setTemperature(t);
 
-    // envoi à chaque cycle (toutes les 30 s), que la température ait changé ou non
-    if (Zigbee.connected()) {
-      zbSondes[s]->reportTemperature();
+    // Envoi seulement si : 1er envoi, variation >= 0,1 °C, 1 h sans envoi, ou appui court.
+    // (marge de 0,001 °C : en flottant 20,1 - 20,0 donne 0,0999...)
+    bool first     = isnan(so.lastReported);
+    bool changed   = !first && fabsf(t - so.lastReported) >= TEMP_REPORT_DELTA_C - 0.001f;
+    bool heartbeat = !first && (now - so.lastReportMs) >= REPORT_HEARTBEAT_MS;
+
+    if (!(first || changed || heartbeat || forceReport)) {
+      Serial.printf("[%s] %.2f °C\n", NOMS[s], t);
+      continue;
+    }
+
+    if (Zigbee.connected() && zbSondes[s]->reportTemperature()) {
+      so.lastReported = t;
+      so.lastReportMs = now;
       ledFlash(0, 0, LED_BRIGHT, LED_SEND_MS);   // flash bleu : envoi
-      Serial.printf("[%s] %.2f °C -> envoyé\n", NOMS[s], t);
+      Serial.printf("[%s] %.2f °C -> envoyé (%s)\n", NOMS[s], t,
+                    first ? "1er envoi" : changed ? "variation" : heartbeat ? "1 h" : "bouton");
     } else {
-      Serial.printf("[%s] %.2f °C (pas de réseau, non envoyé)\n", NOMS[s], t);
+      // pas de réseau ou échec : nouvel essai à la prochaine lecture
+      Serial.printf("[%s] %.2f °C (envoi impossible, nouvel essai)\n", NOMS[s], t);
     }
   }
+  forceReport = false;
 }
 
 // ============================ Boutons ============================
@@ -348,10 +370,11 @@ void handleButtons() {
       delay(20);
     }
 
-    // appui court : mesure + envoi immédiats (le cycle de 30 s repart de maintenant)
+    // appui court : mesure + envoi immédiats des deux sondes, même sans variation
     Serial.println("Appui court : mesure + envoi forcés");
     ledFlash(LED_BRIGHT, LED_BRIGHT, LED_BRIGHT, 100);   // flash blanc
-    tCycle = millis() - SEND_INTERVAL_MS;
+    forceReport = true;
+    tCycle = millis() - MEASURE_INTERVAL_MS;
     return;
   }
 }
@@ -374,7 +397,9 @@ void setup() {
   for (uint8_t s = 0; s < 2; s++) {
     sondes[s].present = false;
     sondes[s].errors = 0;
+    sondes[s].lastMeasured = NAN;
     sondes[s].lastReported = NAN;
+    sondes[s].lastReportMs = 0;
     sondes[s].lastDiscoverMs = 0;
     discoverSensor(s);
   }
@@ -418,11 +443,19 @@ void setup() {
   Serial.println(" connecté !");
   ledFlash(0, LED_BRIGHT, 0, 1500);   // vert vif : appairage réussi
 
+  // Reporting automatique de la pile Zigbee neutralisé : c'est le firmware qui
+  // décide des envois (variation de 0,1 °C ou 1 h). max = 65000 s (~18 h) et seuil
+  // de 600 °C hors d'atteinte. Doit rester aligné sur le convertisseur Z2M.
+  // (après Zigbee.begin, et réappliqué à chaque démarrage)
+  for (uint8_t s = 0; s < 2; s++) {
+    zbSondes[s]->setReporting(0, 65000, 600);
+  }
+
   // Interroge régulièrement le coordinateur pour une mise à jour OTA
   zbEntree.requestOTAUpdate();
 
-  // Première mesure tout de suite, puis toutes les 30 s
-  tCycle = millis() - SEND_INTERVAL_MS;
+  // Première mesure tout de suite, puis toutes les 10 s
+  tCycle = millis() - MEASURE_INTERVAL_MS;
 }
 
 void loop() {
@@ -437,7 +470,7 @@ void loop() {
 
   uint32_t now = millis();
 
-  if (state == IDLE && (now - tCycle) >= SEND_INTERVAL_MS) {
+  if (state == IDLE && (now - tCycle) >= MEASURE_INTERVAL_MS) {
     tCycle = now;
     // lance la conversion sur les deux bus en parallèle
     for (uint8_t s = 0; s < 2; s++) {

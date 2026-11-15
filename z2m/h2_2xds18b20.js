@@ -19,11 +19,12 @@ export default {
         m.deviceEndpoints({endpoints: {entree: 10, sortie: 11}}),
         m.temperature({
             endpointNames: ['entree', 'sortie'],
-            // La sonde envoie elle-même ses deux températures toutes les 30 s (firmware).
-            // Cette config sert à créer la liaison (bind) vers le coordinateur, indispensable
-            // pour que ces envois arrivent. Le reporting automatique de la pile Zigbee est
-            // volontairement neutralisé (max ~18 h, seuil 100 °C) pour éviter les doublons.
-            reporting: {min: 30, max: 65000, change: 10000},
+            // C'est le firmware qui décide des envois : variation >= 0,1 °C, ou au moins
+            // une fois par heure. Cette config sert à créer la liaison (bind) vers le
+            // coordinateur, indispensable pour que ces envois arrivent. Le reporting
+            // automatique de la pile Zigbee est volontairement neutralisé (max ~18 h,
+            // seuil 600 °C), aligné sur setReporting(0, 65000, 600) du firmware.
+            reporting: {min: 0, max: 65000, change: 60000},
         }),
     ],
 };

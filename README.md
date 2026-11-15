@@ -2,7 +2,7 @@
 
 Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20** (entrée et sortie du radiateur), intégrée à Home Assistant via **Zigbee2MQTT**. Les mises à jour du firmware se font **en OTA par le réseau Zigbee**, publiées automatiquement par GitHub Actions.
 
-- Températures d'**entrée** et de **sortie**, mesurées et envoyées toutes les 30 s (`SEND_INTERVAL_MS`)
+- Températures d'**entrée** et de **sortie**, mesurées toutes les 10 s et envoyées seulement si elles varient d'au moins **0,1 °C** (`TEMP_REPORT_DELTA_C`), avec un envoi de sécurité au moins **une fois par heure** (`REPORT_HEARTBEAT_MS`)
 - Bouton d'appairage : appui 3 s pour (ré)appairer, appui court pour forcer un envoi
 - LED d'état : appairé / non appairé / envoi / OTA en cours
 - Client OTA Zigbee avec garde-fou (redémarrage si une OTA échoue ou dure plus de 2 h)
@@ -38,7 +38,7 @@ La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le
 
 ## Zigbee2MQTT
 
-1. Copier `z2m/h2_2xds18b20.mjs` dans `<data Z2M>/external_converters/` et redémarrer Z2M.
+1. Copier `z2m/h2_2xds18b20.js` dans `<data Z2M>/external_converters/` et redémarrer Z2M.
 2. Activer *Permit join*, puis maintenir le bouton d'appairage 3 s.
 3. La sonde apparaît comme `DIY H2-2xDS18B20` avec `temperature_entree` et `temperature_sortie`.
 
@@ -49,7 +49,7 @@ La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le
 | Rouge clignotant | Non appairé : recherche d'un réseau, ou réseau perdu |
 | Vert fixe faible | Appairé (éteinte si `LED_PAIRED_STEADY = false`) |
 | Vert vif 1,5 s | Appairage réussi |
-| Flash bleu | Envoi des températures |
+| Flash bleu | Envoi d'une température (variation de 0,1 °C, envoi horaire ou bouton) |
 | Flash blanc | Appui court : mesure et envoi forcés |
 | Orange fixe | Bouton maintenu (relâcher avant le violet annule) |
 | Violet | Réinitialisation Zigbee puis redémarrage en mode appairage |
@@ -83,7 +83,7 @@ Système commun à tous mes projets Zigbee : voir [Flo69au/zigbee-ota](https://g
 
 ```
 firmware/sonde_zigbee_2x_ds18b20/    sketch Arduino
-z2m/h2_2xds18b20.mjs                 convertisseur externe Zigbee2MQTT 2.x
+z2m/h2_2xds18b20.js                 convertisseur externe Zigbee2MQTT 2.x
 .github/workflows/ota-release.yml    compilation + image OTA + release + index, à chaque tag
 ota_index.json                       index OTA de ce projet (mis à jour par la CI)
 CHANGELOG.md                         historique des versions

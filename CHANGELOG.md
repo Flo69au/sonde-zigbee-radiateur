@@ -2,6 +2,14 @@
 
 Tags `v<majeur>.<mineur>[.<correctif>]`, version Zigbee `0xMMmmPP00`.
 
+## v1.2
+
+- Envoi sur variation : chaque température n'est envoyée que si elle a changé d'au moins 0,1 °C depuis le dernier envoi
+- Envoi de sécurité au moins une fois par heure si la température ne bouge pas
+- Suppression de l'envoi forcé toutes les 30 s ; mesure toutes les 10 s
+- Reporting automatique de la pile Zigbee neutralisé (`setReporting(0, 65000, 600)`), convertisseur Z2M aligné
+- L'appui court sur le bouton force toujours l'envoi immédiat des deux températures
+
 ## v1.1
 
 Première mise à jour OTA.
