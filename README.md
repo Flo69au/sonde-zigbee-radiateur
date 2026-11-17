@@ -2,7 +2,7 @@
 
 Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20** (entrée et sortie du radiateur), intégrée à Home Assistant via **Zigbee2MQTT**. Les mises à jour du firmware se font **en OTA par le réseau Zigbee**, publiées automatiquement par GitHub Actions.
 
-- Températures d'**entrée** et de **sortie**, mesurées toutes les 10 s et envoyées seulement si elles varient d'au moins **0,1 °C** (`TEMP_REPORT_DELTA_C`), avec un envoi de sécurité au moins **une fois par heure** (`REPORT_HEARTBEAT_MS`)
+- Températures d'**entrée** et de **sortie**, mesurées en continu (environ toutes les 0,8 s, `MEASURE_INTERVAL_MS = 0`) et envoyées seulement si elles varient d'au moins **0,1 °C** (`TEMP_REPORT_DELTA_C`), avec un envoi de sécurité au moins **une fois par heure** (`REPORT_HEARTBEAT_MS`)
 - Bouton d'appairage : appui 3 s pour (ré)appairer, appui court pour forcer un envoi
 - LED d'état : appairé / non appairé / envoi / OTA en cours
 - Client OTA Zigbee avec garde-fou (redémarrage si une OTA échoue ou dure plus de 2 h)

@@ -85,7 +85,7 @@
 // ÉGALE au dernier tag publié, pour que Zigbee2MQTT ne repropose pas une mise à jour
 // déjà installée.
 #ifndef OTA_FW_VERSION
-#define OTA_FW_VERSION       0x01020000  // v1.2 (envoi sur variation de 0,1 °C ou toutes les heures)
+#define OTA_FW_VERSION       0x01030000  // v1.3 (lecture des sondes en continu)
 #endif
 #define OTA_HW_VERSION       0x0101      // version matérielle (rarement à changer)
 // Couple fabricant / type d'image réservé à ce projet (voir Flo69au/zigbee-ota) :
@@ -126,7 +126,11 @@ const uint16_t LED_SEND_MS  = 150;  // durée du flash bleu à chaque envoi
 // Envoi vers Zigbee2MQTT : chaque sonde n'envoie que si sa température a varié
 // d'au moins TEMP_REPORT_DELTA_C depuis le dernier envoi, ou si elle n'a rien
 // envoyé depuis REPORT_HEARTBEAT_MS (envoi de sécurité). Plus d'envoi forcé périodique.
-const uint32_t MEASURE_INTERVAL_MS = 10000;   // lecture des deux sondes toutes les 10 s
+// Lecture en continu : une nouvelle conversion démarre dès que la précédente est lue,
+// soit une lecture toutes les ~0,8 s par sonde (en 12 bits une conversion dure 750 ms :
+// c'est le maximum possible). Mettre par exemple 10000 pour lire toutes les 10 s.
+const uint32_t MEASURE_INTERVAL_MS = 0;
+const uint32_t LOG_INTERVAL_MS     = 10000;   // moniteur série : lectures sans envoi affichées toutes les 10 s
 const float    TEMP_REPORT_DELTA_C = 0.1f;    // seuil de variation pour envoyer (°C)
 const uint32_t REPORT_HEARTBEAT_MS = 3600000; // envoi de sécurité : au moins 1 fois par heure
 const uint8_t  RESOLUTION_BITS   = 12;      // 12 bits = pas de 0,0625 °C, conversion 750 ms
@@ -291,6 +295,12 @@ void discoverSensor(uint8_t s) {
 void readAndReport() {
   uint32_t now = millis();
 
+  // Pour ne pas inonder le moniteur série (2 lectures par seconde), les lectures
+  // qui ne partent pas ne sont affichées que toutes les 10 s.
+  static uint32_t lastLogMs = 0;
+  bool logNow = (now - lastLogMs) >= LOG_INTERVAL_MS;
+  if (logNow) lastLogMs = now;
+
   for (uint8_t s = 0; s < 2; s++) {
     Sonde &so = sondes[s];
 
@@ -329,7 +339,7 @@ void readAndReport() {
     bool heartbeat = !first && (now - so.lastReportMs) >= REPORT_HEARTBEAT_MS;
 
     if (!(first || changed || heartbeat || forceReport)) {
-      Serial.printf("[%s] %.2f °C\n", NOMS[s], t);
+      if (logNow) Serial.printf("[%s] %.2f °C\n", NOMS[s], t);
       continue;
     }
 
@@ -454,7 +464,7 @@ void setup() {
   // Interroge régulièrement le coordinateur pour une mise à jour OTA
   zbEntree.requestOTAUpdate();
 
-  // Première mesure tout de suite, puis toutes les 10 s
+  // Première mesure tout de suite, puis en continu
   tCycle = millis() - MEASURE_INTERVAL_MS;
 }
 

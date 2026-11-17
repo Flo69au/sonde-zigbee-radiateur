@@ -2,6 +2,11 @@
 
 Tags `v<majeur>.<mineur>[.<correctif>]`, version Zigbee `0xMMmmPP00`.
 
+## v1.3
+
+- Lecture des deux sondes en continu au lieu de toutes les 10 s : environ une lecture toutes les 0,8 s, le maximum en 12 bits (conversion de 750 ms). Une variation de 0,1 °C part donc en moins de 2 s
+- Moniteur série : les lectures sans envoi ne sont affichées que toutes les 10 s
+
 ## v1.2
 
 - Envoi sur variation : chaque température n'est envoyée que si elle a changé d'au moins 0,1 °C depuis le dernier envoi
