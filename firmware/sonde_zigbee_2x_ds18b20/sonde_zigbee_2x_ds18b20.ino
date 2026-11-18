@@ -85,7 +85,7 @@
 // ÉGALE au dernier tag publié, pour que Zigbee2MQTT ne repropose pas une mise à jour
 // déjà installée.
 #ifndef OTA_FW_VERSION
-#define OTA_FW_VERSION       0x01030000  // v1.3 (lecture des sondes en continu)
+#define OTA_FW_VERSION       0x01040000  // v1.4 (envoi sur variation de 0,2 °C)
 #endif
 #define OTA_HW_VERSION       0x0101      // version matérielle (rarement à changer)
 // Couple fabricant / type d'image réservé à ce projet (voir Flo69au/zigbee-ota) :
@@ -131,7 +131,9 @@ const uint16_t LED_SEND_MS  = 150;  // durée du flash bleu à chaque envoi
 // c'est le maximum possible). Mettre par exemple 10000 pour lire toutes les 10 s.
 const uint32_t MEASURE_INTERVAL_MS = 0;
 const uint32_t LOG_INTERVAL_MS     = 10000;   // moniteur série : lectures sans envoi affichées toutes les 10 s
-const float    TEMP_REPORT_DELTA_C = 0.1f;    // seuil de variation pour envoyer (°C)
+// Seuil de variation pour envoyer (°C). Le DS18B20 mesure par pas de 0,0625 °C :
+// avec 0,2 °C, un envoi part en pratique à 0,25 °C d'écart (4 pas ; 3 pas = 0,1875).
+const float    TEMP_REPORT_DELTA_C = 0.2f;
 const uint32_t REPORT_HEARTBEAT_MS = 3600000; // envoi de sécurité : au moins 1 fois par heure
 const uint8_t  RESOLUTION_BITS   = 12;      // 12 bits = pas de 0,0625 °C, conversion 750 ms
 const uint32_t REDISCOVER_MS     = 60000;   // nouvelle recherche si une sonde manque
@@ -332,8 +334,8 @@ void readAndReport() {
     so.lastMeasured = t;
     zbSondes[s]->setTemperature(t);
 
-    // Envoi seulement si : 1er envoi, variation >= 0,1 °C, 1 h sans envoi, ou appui court.
-    // (marge de 0,001 °C : en flottant 20,1 - 20,0 donne 0,0999...)
+    // Envoi seulement si : 1er envoi, variation >= TEMP_REPORT_DELTA_C, 1 h sans envoi,
+    // ou appui court. (marge de 0,001 °C : en flottant 20,2 - 20,0 donne 0,1999...)
     bool first     = isnan(so.lastReported);
     bool changed   = !first && fabsf(t - so.lastReported) >= TEMP_REPORT_DELTA_C - 0.001f;
     bool heartbeat = !first && (now - so.lastReportMs) >= REPORT_HEARTBEAT_MS;
@@ -454,7 +456,7 @@ void setup() {
   ledFlash(0, LED_BRIGHT, 0, 1500);   // vert vif : appairage réussi
 
   // Reporting automatique de la pile Zigbee neutralisé : c'est le firmware qui
-  // décide des envois (variation de 0,1 °C ou 1 h). max = 65000 s (~18 h) et seuil
+  // décide des envois (variation de 0,2 °C ou 1 h). max = 65000 s (~18 h) et seuil
   // de 600 °C hors d'atteinte. Doit rester aligné sur le convertisseur Z2M.
   // (après Zigbee.begin, et réappliqué à chaque démarrage)
   for (uint8_t s = 0; s < 2; s++) {

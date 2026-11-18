@@ -2,6 +2,10 @@
 
 Tags `v<majeur>.<mineur>[.<correctif>]`, version Zigbee `0xMMmmPP00`.
 
+## v1.4
+
+- Seuil d'envoi relevé de 0,1 °C à 0,2 °C pour réduire le nombre d'envois. Le DS18B20 mesurant par pas de 0,0625 °C, un envoi part en pratique à 0,25 °C d'écart (au lieu de 0,125 °C)
+
 ## v1.3
 
 - Lecture des deux sondes en continu au lieu de toutes les 10 s : environ une lecture toutes les 0,8 s, le maximum en 12 bits (conversion de 750 ms). Une variation de 0,1 °C part donc en moins de 2 s

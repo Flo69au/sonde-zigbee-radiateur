@@ -19,7 +19,7 @@ export default {
         m.deviceEndpoints({endpoints: {entree: 10, sortie: 11}}),
         m.temperature({
             endpointNames: ['entree', 'sortie'],
-            // C'est le firmware qui décide des envois : variation >= 0,1 °C, ou au moins
+            // C'est le firmware qui décide des envois : variation >= 0,2 °C, ou au moins
             // une fois par heure. Cette config sert à créer la liaison (bind) vers le
             // coordinateur, indispensable pour que ces envois arrivent. Le reporting
             // automatique de la pile Zigbee est volontairement neutralisé (max ~18 h,
