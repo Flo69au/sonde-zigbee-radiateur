@@ -4,10 +4,10 @@ Tags `v<majeur>.<mineur>[.<correctif>]`, version Zigbee `0xMMmmPP00`.
 
 ## v1.5
 
-- LED d'état alignée sur le capteur CO2 ESP32-H2 : éteinte en fonctionnement normal (plus de vert fixe une fois appairé)
-- Orange clignotant si non connecté (au lieu de rouge), flash vert à chaque envoi (au lieu de bleu), flash rouge en cas d'échec d'envoi
-- Bouton maintenu en blanc fixe (au lieu d'orange puis violet), OTA en cours en bleu rapide (au lieu de cyan)
-- Rouge réservé aux erreurs : échec d'envoi, Zigbee qui ne démarre pas, OTA interrompue
+- LED éteinte en fonctionnement normal (plus de vert fixe une fois appairé) : elle ne s'allume que pour un événement
+- Flash vert à chaque envoi (au lieu de bleu), flash rouge en cas d'échec d'envoi
+- Non connecté : rouge clignotant. Bouton maintenu : orange puis violet à 3 s (réinitialisation)
+- OTA en cours en bleu rapide (au lieu de cyan)
 - Couleurs justes sur la Waveshare ESP32-H2-Zero : sa LED WS2812 a le rouge et le vert inversés par rapport au réglage « ESP32H2 Dev Module ». C'est ce qui affichait le vert fixe « appairé » de la v1.4 en rouge. Réglable avec `LED_COLOR_ORDER`
 
 ## v1.4

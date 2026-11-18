@@ -44,16 +44,17 @@ La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le
 
 ### Bouton et LED
 
-Même code couleur que le capteur CO2 ESP32-H2 : **la LED est éteinte en fonctionnement normal**, elle ne s'allume que pour signaler un événement.
+**La LED est éteinte en fonctionnement normal**, elle ne s'allume que pour signaler un événement.
 
 | LED | Signification |
 |---|---|
 | Éteinte | Connecté au réseau Zigbee, fonctionnement normal |
-| Orange clignotant | Non connecté : recherche d'un réseau (appairage) ou réseau perdu |
+| Rouge clignotant | Non connecté : recherche d'un réseau (appairage) ou réseau perdu |
 | Flash vert | Température envoyée (variation de 0,2 °C, envoi horaire ou bouton) |
 | Flash rouge | Échec d'un envoi (nouvel essai à la lecture suivante) |
 | Flash blanc | Appui court : mesure et envoi forcés |
-| Blanc fixe | Bouton maintenu : au bout de 3 s, réinitialisation Zigbee puis redémarrage en mode appairage (relâcher avant annule) |
+| Orange fixe | Bouton maintenu (relâcher avant le violet annule) |
+| Violet | 3 s atteintes : réinitialisation Zigbee puis redémarrage en mode appairage |
 | Bleu clignotant rapide | Mise à jour OTA en cours : envois et boutons suspendus, ne pas couper l'alimentation |
 | Rouge 1 à 2 s | Le Zigbee n'a pas démarré ou une OTA a échoué : la sonde redémarre |
 
