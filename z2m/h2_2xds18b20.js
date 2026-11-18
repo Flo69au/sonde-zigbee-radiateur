@@ -12,7 +12,7 @@ import * as m from 'zigbee-herdsman-converters/lib/modernExtend';
 export default {
     zigbeeModel: ['H2-2xDS18B20'],          // = ZB_MODEL dans le firmware
     model: 'H2-2xDS18B20',
-    vendor: 'DIY',
+    vendor: 'Florian-DIY',
     description: 'DeltaRad : sonde de température radiateur entrée/sortie (ESP32-H2 + 2x DS18B20)',
     ota: true,                               // mises à jour firmware depuis l'onglet OTA de Z2M
     extend: [
