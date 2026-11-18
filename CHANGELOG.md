@@ -8,7 +8,7 @@ Tags `v<majeur>.<mineur>[.<correctif>]`, version Zigbee `0xMMmmPP00`.
 - Flash vert à chaque envoi (au lieu de bleu), flash rouge en cas d'échec d'envoi
 - Non connecté : rouge clignotant. Bouton maintenu : orange puis violet à 3 s (réinitialisation)
 - OTA en cours en bleu rapide (au lieu de cyan)
-- Couleurs justes sur la Waveshare ESP32-H2-Zero : sa LED WS2812 a le rouge et le vert inversés par rapport au réglage « ESP32H2 Dev Module ». C'est ce qui affichait le vert fixe « appairé » de la v1.4 en rouge. Réglable avec `LED_COLOR_ORDER`
+- Couleurs justes sur la Waveshare ESP32-H2-Zero : sa LED WS2812 a le rouge et le vert inversés par rapport au réglage « ESP32H2 Dev Module ». C'est ce qui affichait le vert fixe « appairé » de la v1.4 en rouge. La fonction `led()` inverse g et r
 
 ## v1.4
 

@@ -55,7 +55,7 @@
  *                        ne pas couper l'alimentation)
  *   rouge 1-2 s       -> le Zigbee n'a pas démarré ou une OTA a échoué : redémarrage
  * Sur l'ESP32-H2-Zero, rouge et vert sont inversés par rapport au réglage par défaut
- * de "ESP32H2 Dev Module" : le firmware le compense (voir LED_COLOR_ORDER).
+ * de "ESP32H2 Dev Module" : led() inverse g et r (comme ledColor() du capteur CO2).
  *
  * Côté Zigbee : 2 endpoints "Temperature Measurement" (cluster 0x0402)
  *   endpoint 10 = température d'ENTRÉE (GPIO4)  -> temperature_entree dans Z2M
@@ -114,11 +114,6 @@ volatile uint32_t otaStartMs = 0;
 #define PAIR_BUTTON_PIN  11         // bouton d'appairage externe (vers GND)
 
 #define USE_STATUS_LED     true     // false = LED de la carte toujours éteinte
-// Ordre des couleurs de la LED WS2812 de la carte :
-//   Waveshare ESP32-H2-Zero (et les autres cartes Waveshare "Zero") : LED_COLOR_ORDER_RGB
-//   Espressif ESP32-H2-DevKitM-1 : LED_COLOR_ORDER_GRB
-// Si le flash d'envoi apparaît rouge au lieu de vert, changer cette valeur.
-#define LED_COLOR_ORDER    LED_COLOR_ORDER_RGB
 
 const uint8_t  LED_BRIGHT   = 40;   // luminosité flashs / clignotements (0-255)
 const uint16_t LED_BLINK_MS = 300;  // demi-période du clignotement rouge (non connecté)
@@ -192,7 +187,7 @@ void led(uint8_t r, uint8_t g, uint8_t b) {
   int32_t c = ((int32_t)r << 16) | ((int32_t)g << 8) | b;
   if (!USE_STATUS_LED || c == last) return;
   last = c;
-  rgbLedWriteOrdered(RGB_BUILTIN, LED_COLOR_ORDER, r, g, b);   // ordre propre à la carte
+  rgbLedWrite(RGB_BUILTIN, g, r, b);  // g et r inversés : LED de l'ESP32-H2-Zero
 #else
   (void)r; (void)g; (void)b;   // pas de LED RGB connue sur cette carte
 #endif

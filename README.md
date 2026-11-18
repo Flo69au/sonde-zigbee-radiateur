@@ -16,7 +16,7 @@ Sonde Zigbee DIY à base d'**ESP32-H2** (carte **Waveshare ESP32-H2-Zero**) avec
 | VDD des sondes | 3V3 | alimentation normale (pas de mode parasite) |
 | GND des sondes | GND | |
 | Bouton d'appairage | GPIO11 → GND | bouton poussoir, pull-up interne |
-| LED RGB | GPIO8 | LED WS2812 intégrée à l'ESP32-H2-Zero. Ordre des couleurs RGB (rouge et vert inversés par rapport à l'ESP32-H2-DevKitM-1) : `LED_COLOR_ORDER` dans le sketch |
+| LED RGB | GPIO8 | LED WS2812 intégrée à l'ESP32-H2-Zero (rouge et vert inversés : `led()` inverse g et r) |
 
 À éviter sur le H2 : GPIO 2, 3, 8, 9, 25 (strapping), 26/27 (USB), 23/24 (UART). Câbles longs (> 5–10 m) : pull-up de 2,2 kΩ.
 
@@ -58,7 +58,7 @@ La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le
 | Bleu clignotant rapide | Mise à jour OTA en cours : envois et boutons suspendus, ne pas couper l'alimentation |
 | Rouge 1 à 2 s | Le Zigbee n'a pas démarré ou une OTA a échoué : la sonde redémarre |
 
-Sur l'ESP32-H2-Zero, la LED WS2812 a le rouge et le vert inversés par rapport au réglage par défaut de « ESP32H2 Dev Module » : le sketch le compense avec `LED_COLOR_ORDER_RGB`. Sur une ESP32-H2-DevKitM-1, mettre `LED_COLOR_ORDER_GRB` (sinon les flashs d'envoi apparaissent rouges au lieu de verts).
+Sur l'ESP32-H2-Zero, la LED WS2812 a le rouge et le vert inversés par rapport au réglage par défaut de « ESP32H2 Dev Module » : la fonction `led()` du sketch inverse g et r, comme `ledColor()` du capteur CO2. Sur une ESP32-H2-DevKitM-1, remettre `rgbLedWrite(RGB_BUILTIN, r, g, b)`.
 
 ## Mises à jour OTA
 
