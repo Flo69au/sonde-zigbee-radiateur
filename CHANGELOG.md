@@ -2,6 +2,13 @@
 
 Tags `v<majeur>.<mineur>[.<correctif>]`, version Zigbee `0xMMmmPP00`.
 
+## v1.5
+
+- LED d'état alignée sur le capteur CO2 ESP32-H2 : éteinte en fonctionnement normal (plus de vert fixe une fois appairé)
+- Orange clignotant si non connecté (au lieu de rouge), flash vert à chaque envoi (au lieu de bleu), flash rouge en cas d'échec d'envoi
+- Bouton maintenu en blanc fixe (au lieu d'orange puis violet), OTA en cours en bleu rapide (au lieu de cyan)
+- Rouge réservé aux erreurs : échec d'envoi, Zigbee qui ne démarre pas, OTA interrompue
+
 ## v1.4
 
 - Seuil d'envoi relevé de 0,1 °C à 0,2 °C pour réduire le nombre d'envois. Le DS18B20 mesurant par pas de 0,0625 °C, un envoi part en pratique à 0,25 °C d'écart (au lieu de 0,125 °C)

@@ -4,7 +4,7 @@ Sonde Zigbee DIY à base d'**ESP32-H2** avec **deux DS18B20** (entrée et sortie
 
 - Températures d'**entrée** et de **sortie**, mesurées en continu (environ toutes les 0,8 s, `MEASURE_INTERVAL_MS = 0`) et envoyées seulement si elles varient d'au moins **0,2 °C** (`TEMP_REPORT_DELTA_C` ; en pratique 0,25 °C, le DS18B20 mesurant par pas de 0,0625 °C), avec un envoi de sécurité au moins **une fois par heure** (`REPORT_HEARTBEAT_MS`)
 - Bouton d'appairage : appui 3 s pour (ré)appairer, appui court pour forcer un envoi
-- LED d'état : appairé / non appairé / envoi / OTA en cours
+- LED d'état, éteinte en fonctionnement normal : non connecté / envoi / bouton / OTA en cours
 - Client OTA Zigbee avec garde-fou (redémarrage si une OTA échoue ou dure plus de 2 h)
 
 ## Matériel et câblage
@@ -44,16 +44,20 @@ La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le
 
 ### Bouton et LED
 
+Même code couleur que le capteur CO2 ESP32-H2 : **la LED est éteinte en fonctionnement normal**, elle ne s'allume que pour signaler un événement.
+
 | LED | Signification |
 |---|---|
-| Rouge clignotant | Non appairé : recherche d'un réseau, ou réseau perdu |
-| Vert fixe faible | Appairé (éteinte si `LED_PAIRED_STEADY = false`) |
-| Vert vif 1,5 s | Appairage réussi |
-| Flash bleu | Envoi d'une température (variation de 0,2 °C, envoi horaire ou bouton) |
+| Éteinte | Connecté au réseau Zigbee, fonctionnement normal |
+| Orange clignotant | Non connecté : recherche d'un réseau (appairage) ou réseau perdu |
+| Flash vert | Température envoyée (variation de 0,2 °C, envoi horaire ou bouton) |
+| Flash rouge | Échec d'un envoi (nouvel essai à la lecture suivante) |
 | Flash blanc | Appui court : mesure et envoi forcés |
-| Orange fixe | Bouton maintenu (relâcher avant le violet annule) |
-| Violet | Réinitialisation Zigbee puis redémarrage en mode appairage |
-| Cyan clignotant rapide | Mise à jour OTA en cours : envois et boutons suspendus, ne pas couper l'alimentation |
+| Blanc fixe | Bouton maintenu : au bout de 3 s, réinitialisation Zigbee puis redémarrage en mode appairage (relâcher avant annule) |
+| Bleu clignotant rapide | Mise à jour OTA en cours : envois et boutons suspendus, ne pas couper l'alimentation |
+| Rouge 1 à 2 s | Le Zigbee n'a pas démarré ou une OTA a échoué : la sonde redémarre |
+
+Si les flashs d'envoi apparaissent rouges au lieu de verts, la LED de la carte a le rouge et le vert inversés (certains clones) : me le signaler.
 
 ## Mises à jour OTA
 

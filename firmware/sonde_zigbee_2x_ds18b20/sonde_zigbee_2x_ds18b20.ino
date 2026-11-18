@@ -42,16 +42,17 @@
  *   appui > 3 s     -> quitte le réseau Zigbee, reboot et repasse en mode appairage
  *                      (activer le "Permit join" dans Zigbee2MQTT)
  *
- * LED RGB de la carte (GPIO8 sur ESP32-H2-DevKitM-1), si présente :
- *   rouge clignotant -> NON appairé : recherche d'un réseau / réseau perdu
- *   vert fixe faible -> appairé (ou éteinte si LED_PAIRED_STEADY = false)
- *   vert vif 1,5 s   -> appairage réussi
- *   flash bleu       -> envoi d'une température
- *   flash blanc      -> appui court sur le bouton
- *   orange fixe      -> bouton maintenu (relâcher annule tant que ce n'est pas violet)
- *   violet           -> réinitialisation Zigbee, reboot en mode appairage
- *   cyan clignotant  -> mise à jour OTA en cours (envois et boutons suspendus,
- *                       ne pas couper l'alimentation)
+ * LED RGB WS2812 de la carte (RGB_BUILTIN, GPIO8) : même code couleur que le
+ * capteur CO2 ESP32-H2. ÉTEINTE en fonctionnement normal, elle ne s'allume que :
+ *   orange clignotant -> NON connecté : recherche d'un réseau (appairage) / réseau perdu
+ *   flash vert        -> température envoyée à Zigbee2MQTT
+ *   flash rouge       -> échec d'envoi (nouvel essai à la lecture suivante)
+ *   flash blanc       -> appui court sur le bouton
+ *   blanc fixe        -> bouton maintenu ; au bout de 3 s : réinitialisation Zigbee
+ *                        et reboot en mode appairage (relâcher avant annule)
+ *   bleu rapide       -> mise à jour OTA en cours (envois et boutons suspendus,
+ *                        ne pas couper l'alimentation)
+ *   rouge 1-2 s       -> le Zigbee n'a pas démarré ou une OTA a échoué : redémarrage
  *
  * Côté Zigbee : 2 endpoints "Temperature Measurement" (cluster 0x0402)
  *   endpoint 10 = température d'ENTRÉE (GPIO4)  -> temperature_entree dans Z2M
@@ -85,7 +86,7 @@
 // ÉGALE au dernier tag publié, pour que Zigbee2MQTT ne repropose pas une mise à jour
 // déjà installée.
 #ifndef OTA_FW_VERSION
-#define OTA_FW_VERSION       0x01040000  // v1.4 (envoi sur variation de 0,2 °C)
+#define OTA_FW_VERSION       0x01050000  // v1.5 (LED éteinte en fonctionnement normal, couleurs du capteur CO2)
 #endif
 #define OTA_HW_VERSION       0x0101      // version matérielle (rarement à changer)
 // Couple fabricant / type d'image réservé à ce projet (voir Flo69au/zigbee-ota) :
@@ -110,12 +111,10 @@ volatile uint32_t otaStartMs = 0;
 #define PAIR_BUTTON_PIN  11         // bouton d'appairage externe (vers GND)
 
 #define USE_STATUS_LED     true     // false = LED de la carte toujours éteinte
-#define LED_PAIRED_STEADY  true     // true = vert fixe quand appairé ; false = éteinte, seuls les flashs
 
 const uint8_t  LED_BRIGHT   = 40;   // luminosité flashs / clignotements (0-255)
-const uint8_t  LED_DIM      = 6;    // luminosité du vert fixe "appairé"
-const uint16_t LED_BLINK_MS = 300;  // demi-période du clignotement rouge
-const uint16_t LED_SEND_MS  = 150;  // durée du flash bleu à chaque envoi
+const uint16_t LED_BLINK_MS = 300;  // demi-période du clignotement orange (non connecté)
+const uint16_t LED_SEND_MS  = 150;  // durée du flash vert (ou rouge) à chaque envoi
 
 #define EP_ENTREE     10
 #define EP_SORTIE     11
@@ -203,13 +202,11 @@ void ledUpdate() {
   if ((int32_t)(flashUntil - now) > 0) return;   // un flash est en cours
 
   if (!Zigbee.connected()) {
-    // non appairé / réseau perdu : rouge clignotant
-    if ((now / LED_BLINK_MS) % 2) led(LED_BRIGHT, 0, 0);
+    // non connecté (appairage en cours / réseau perdu) : orange clignotant
+    if ((now / LED_BLINK_MS) % 2) led(LED_BRIGHT, LED_BRIGHT * 3 / 8, 0);
     else                          led(0, 0, 0);
-  } else if (LED_PAIRED_STEADY) {
-    led(0, LED_DIM, 0);          // appairé : vert fixe faible
   } else {
-    led(0, 0, 0);                // appairé : éteinte entre deux envois
+    led(0, 0, 0);                // connecté : éteinte, seuls les flashs d'envoi
   }
 }
 
@@ -243,8 +240,8 @@ bool otaGuard() {
     delay(500);
     ESP.restart();
   }
-  // cyan clignotant rapide : OTA en cours, ne pas couper l'alimentation
-  if ((millis() / 150) % 2) led(0, LED_BRIGHT, LED_BRIGHT);
+  // bleu rapide : OTA en cours, ne pas couper l'alimentation
+  if ((millis() / 100) % 2) led(0, 0, LED_BRIGHT);
   else                      led(0, 0, 0);
   return true;
 }
@@ -345,15 +342,18 @@ void readAndReport() {
       continue;
     }
 
-    if (Zigbee.connected() && zbSondes[s]->reportTemperature()) {
+    if (!Zigbee.connected()) {
+      // pas de réseau (la LED clignote déjà en orange) : nouvel essai à la prochaine lecture
+      Serial.printf("[%s] %.2f °C (pas de réseau, nouvel essai)\n", NOMS[s], t);
+    } else if (zbSondes[s]->reportTemperature()) {
       so.lastReported = t;
       so.lastReportMs = now;
-      ledFlash(0, 0, LED_BRIGHT, LED_SEND_MS);   // flash bleu : envoi
+      ledFlash(0, LED_BRIGHT, 0, LED_SEND_MS);   // flash vert : envoyé
       Serial.printf("[%s] %.2f °C -> envoyé (%s)\n", NOMS[s], t,
                     first ? "1er envoi" : changed ? "variation" : heartbeat ? "1 h" : "bouton");
     } else {
-      // pas de réseau ou échec : nouvel essai à la prochaine lecture
-      Serial.printf("[%s] %.2f °C (envoi impossible, nouvel essai)\n", NOMS[s], t);
+      ledFlash(LED_BRIGHT, 0, 0, LED_SEND_MS);   // flash rouge : échec d'envoi
+      Serial.printf("[%s] %.2f °C (échec d'envoi, nouvel essai)\n", NOMS[s], t);
     }
   }
   forceReport = false;
@@ -370,12 +370,13 @@ void handleButtons() {
     delay(50);                                  // anti-rebond
     if (digitalRead(pin) != LOW) continue;
 
-    led(LED_BRIGHT, LED_BRIGHT / 3, 0);         // orange : bouton maintenu
+    led(LED_BRIGHT, LED_BRIGHT, LED_BRIGHT);    // blanc fixe : bouton maintenu
     uint32_t t0 = millis();
     while (digitalRead(pin) == LOW) {
       if (millis() - t0 >= PAIR_HOLD_MS) {
+        // 3 s atteintes : réinitialisation (LED blanche), puis reboot en mode
+        // appairage où la LED clignote en orange
         Serial.println("Appairage : on quitte le réseau, reboot en mode appairage...");
-        led(LED_BRIGHT, 0, LED_BRIGHT);         // violet : réinitialisation
         delay(800);
         Zigbee.factoryReset();                  // efface le réseau et redémarre
       }
@@ -444,7 +445,7 @@ void setup() {
   Serial.print("Zigbee : recherche du réseau (active le Permit join dans Z2M)");
   uint32_t tDot = 0;
   while (!Zigbee.connected()) {
-    ledUpdate();      // rouge clignotant
+    ledUpdate();      // orange clignotant
     handleButtons();  // reset possible même pendant l'attente
     if (millis() - tDot >= 1000) {
       tDot = millis();
@@ -453,7 +454,7 @@ void setup() {
     delay(20);
   }
   Serial.println(" connecté !");
-  ledFlash(0, LED_BRIGHT, 0, 1500);   // vert vif : appairage réussi
+  led(0, 0, 0);   // connecté : LED éteinte (le 1er envoi fera un flash vert)
 
   // Reporting automatique de la pile Zigbee neutralisé : c'est le firmware qui
   // décide des envois (variation de 0,2 °C ou 1 h). max = 65000 s (~18 h) et seuil
@@ -478,7 +479,7 @@ void loop() {
   }
 
   handleButtons();
-  ledUpdate();   // vert fixe si appairé, rouge clignotant si réseau perdu
+  ledUpdate();   // éteinte si connecté, orange clignotant si réseau perdu
 
   uint32_t now = millis();
 
