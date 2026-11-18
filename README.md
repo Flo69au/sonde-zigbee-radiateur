@@ -1,6 +1,6 @@
-# Sonde de température radiateur Zigbee
+# DeltaRad : sonde de température radiateur Zigbee
 
-Sonde Zigbee DIY à base d'**ESP32-H2** (carte **Waveshare ESP32-H2-Zero**) avec **deux DS18B20** (entrée et sortie du radiateur), intégrée à Home Assistant via **Zigbee2MQTT**. Les mises à jour du firmware se font **en OTA par le réseau Zigbee**, publiées automatiquement par GitHub Actions.
+**DeltaRad** mesure l'écart de température (le « delta ») entre l'entrée et la sortie d'un radiateur. Sonde Zigbee DIY à base d'**ESP32-H2** (carte **Waveshare ESP32-H2-Zero**) avec **deux DS18B20** (entrée et sortie du radiateur), intégrée à Home Assistant via **Zigbee2MQTT**. Les mises à jour du firmware se font **en OTA par le réseau Zigbee**, publiées automatiquement par GitHub Actions.
 
 - Températures d'**entrée** et de **sortie**, mesurées en continu (environ toutes les 0,8 s, `MEASURE_INTERVAL_MS = 0`) et envoyées seulement si elles varient d'au moins **0,2 °C** (`TEMP_REPORT_DELTA_C` ; en pratique 0,25 °C, le DS18B20 mesurant par pas de 0,0625 °C), avec un envoi de sécurité au moins **une fois par heure** (`REPORT_HEARTBEAT_MS`)
 - Bouton d'appairage : appui 3 s pour (ré)appairer, appui court pour forcer un envoi
@@ -40,7 +40,7 @@ La version flashée en USB est la valeur par défaut de `OTA_FW_VERSION` dans le
 
 1. Copier `z2m/h2_2xds18b20.js` dans `<data Z2M>/external_converters/` et redémarrer Z2M.
 2. Activer *Permit join*, puis maintenir le bouton d'appairage 3 s.
-3. La sonde apparaît comme `DIY H2-2xDS18B20` avec `temperature_entree` et `temperature_sortie`.
+3. La sonde apparaît comme `DIY H2-2xDS18B20` (description « DeltaRad ») avec `temperature_entree` et `temperature_sortie`. L'identifiant `H2-2xDS18B20` ne change pas : c'est lui qui fait reconnaître la sonde par Z2M et par l'index OTA. Le nom affiché dans Home Assistant se règle dans Z2M (*Friendly name*).
 
 ### Bouton et LED
 

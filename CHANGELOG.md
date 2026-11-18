@@ -2,6 +2,14 @@
 
 Tags `v<majeur>.<mineur>[.<correctif>]`, version Zigbee `0xMMmmPP00`.
 
+## Prochaine version
+
+- Nom du projet : **DeltaRad** (README, description du convertisseur Z2M, message de démarrage du moniteur série). L'identifiant Zigbee `H2-2xDS18B20` ne change pas
+
+## v1.6
+
+- `led()` inverse g et r, comme `ledColor()` du capteur CO2, pour la LED de l'ESP32-H2-Zero. Les couleurs affichées sont les mêmes qu'en v1.5
+
 ## v1.5
 
 - LED éteinte en fonctionnement normal (plus de vert fixe une fois appairé) : elle ne s'allume que pour un événement

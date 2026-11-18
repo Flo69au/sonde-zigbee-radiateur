@@ -1,7 +1,8 @@
 /*
- * Sonde de température Zigbee : ESP32-H2 + 2x DS18B20 (un bus 1-Wire par sonde)
- *                               carte Waveshare ESP32-H2-Zero (ESP32-H2FH4, 4 Mo)
- *                               + bouton d'appairage externe
+ * DeltaRad : sonde de température Zigbee pour radiateur (entrée / sortie)
+ *            ESP32-H2 + 2x DS18B20 (un bus 1-Wire par sonde)
+ *            carte Waveshare ESP32-H2-Zero (ESP32-H2FH4, 4 Mo)
+ *            + bouton d'appairage externe
  * ==============================================================================
  * Core Arduino-ESP32 3.3.x (bibliothèque Zigbee intégrée au core), CI épinglée sur 3.3.12
  *
@@ -89,7 +90,7 @@
 // ÉGALE au dernier tag publié, pour que Zigbee2MQTT ne repropose pas une mise à jour
 // déjà installée.
 #ifndef OTA_FW_VERSION
-#define OTA_FW_VERSION       0x01050000  // v1.5 (LED éteinte en fonctionnement normal, couleurs du capteur CO2)
+#define OTA_FW_VERSION       0x01060000  // v1.6 (led() : g et r inversés, comme le capteur CO2)
 #endif
 #define OTA_HW_VERSION       0x0101      // version matérielle (rarement à changer)
 // Couple fabricant / type d'image réservé à ce projet (voir Flo69au/zigbee-ota) :
@@ -401,7 +402,7 @@ void handleButtons() {
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.printf("\n=== Sonde Zigbee ESP32-H2 + 2x DS18B20 : firmware v%lu.%lu.%lu (0x%08lX) ===\n",
+  Serial.printf("\n=== DeltaRad, sonde radiateur Zigbee (ESP32-H2 + 2x DS18B20) : firmware v%lu.%lu.%lu (0x%08lX) ===\n",
                 (unsigned long)((OTA_FW_VERSION >> 24) & 0xFF),
                 (unsigned long)((OTA_FW_VERSION >> 16) & 0xFF),
                 (unsigned long)((OTA_FW_VERSION >> 8) & 0xFF),

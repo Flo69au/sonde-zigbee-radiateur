@@ -1,4 +1,4 @@
-// Zigbee2MQTT 2.x : convertisseur externe pour la sonde ESP32-H2 + 2x DS18B20
+// Zigbee2MQTT 2.x : convertisseur externe pour DeltaRad, la sonde radiateur ESP32-H2 + 2x DS18B20
 //
 // Installation : copier ce fichier dans  <dossier data de Z2M>/external_converters/
 // puis redémarrer Zigbee2MQTT. Si la sonde est déjà appairée : bouton "Reconfigure"
@@ -13,7 +13,7 @@ export default {
     zigbeeModel: ['H2-2xDS18B20'],          // = ZB_MODEL dans le firmware
     model: 'H2-2xDS18B20',
     vendor: 'DIY',
-    description: 'Sonde de température 2x DS18B20 (ESP32-H2)',
+    description: 'DeltaRad : sonde de température radiateur entrée/sortie (ESP32-H2 + 2x DS18B20)',
     ota: true,                               // mises à jour firmware depuis l'onglet OTA de Z2M
     extend: [
         m.deviceEndpoints({endpoints: {entree: 10, sortie: 11}}),
