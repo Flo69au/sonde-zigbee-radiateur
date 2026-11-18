@@ -1,12 +1,12 @@
 [
   {
-    "fileName": "1337-0002-01050000-ota-file.zigbee",
-    "fileVersion": 17104896,
+    "fileName": "1337-0002-01060000-ota-file.zigbee",
+    "fileVersion": 17170432,
     "fileSize": 742814,
-    "url": "https://github.com/Flo69au/sonde-zigbee-radiateur/releases/download/v1.5/1337-0002-01050000-ota-file.zigbee",
+    "url": "https://github.com/Flo69au/sonde-zigbee-radiateur/releases/download/v1.6/1337-0002-01060000-ota-file.zigbee",
     "imageType": 2,
     "manufacturerCode": 4919,
     "modelId": "H2-2xDS18B20",
-    "sha512": "bcb3cf72141b946440c8cfdda3eb95a8fc5a54231fa1d136916452bb3c29d1512278076bd87b0fb47b3ba8bc5234b75ea47b3fe42b463feadfe89d035d63e69c"
+    "sha512": "9fe2036a249918ccaf88907cb9d931a95f192abfded792b67edfed375090a3e96646c612f77dbd2f203a404826cc6ae692080fc5fd3873800c267c74861263d9"
   }
 ]
